@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>万代ギフト 配送判定ツール</title>
+    <title>万代カタログ配送不可地域判別ツール</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
         :root {
@@ -17,6 +17,10 @@
             --success: #22c55e;
             --error: #ef4444;
             --info: #3b82f6;
+            --warning-bg: #fef3c7;
+            --warning-border: #fcd34d;
+            --notice-bg: #dbeafe;
+            --notice-border: #93c5fd;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -31,14 +35,18 @@
             padding: 20px;
         }
 
+        .container {
+            width: 100%;
+            max-width: 600px;
+        }
+
         .card {
             background: var(--card-bg);
-            width: 100%;
-            max-width: 450px;
-            border-radius: 16px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             padding: 24px;
             border: 1px solid var(--border);
+            margin-bottom: 20px;
         }
 
         header {
@@ -47,10 +55,11 @@
         }
 
         h1 {
-            font-size: 20px;
+            font-size: 22px;
             font-weight: 700;
             color: var(--text-main);
             letter-spacing: -0.025em;
+            margin-bottom: 8px;
         }
 
         .status-badge {
@@ -59,10 +68,91 @@
             border-radius: 9999px;
             font-size: 12px;
             font-weight: 500;
-            margin-top: 8px;
         }
         .status-loading { background: #fef3c7; color: #92400e; }
         .status-ready { background: #dcfce7; color: #166534; }
+
+        /* 注意書きボックス */
+        .notice-box {
+            border-left: 4px solid #f59e0b;
+            background-color: var(--warning-bg);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .notice-box h3 {
+            font-size: 14px;
+            font-weight: 700;
+            color: #92400e;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+        }
+
+        .notice-box h3::before {
+            content: "⚠";
+            margin-right: 8px;
+            font-size: 16px;
+        }
+
+        .notice-box ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .notice-box li {
+            font-size: 13px;
+            color: #78350f;
+            margin-bottom: 8px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .notice-box li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+        }
+
+        .notice-box li:last-child {
+            margin-bottom: 0;
+        }
+
+        /* ルール変更のお知らせ */
+        .rule-notice {
+            border-left: 4px solid #f59e0b;
+            background-color: var(--warning-bg);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .rule-notice h3 {
+            font-size: 14px;
+            font-weight: 700;
+            color: #92400e;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+        }
+
+        .rule-notice h3::before {
+            content: "📋";
+            margin-right: 8px;
+        }
+
+        .rule-notice p {
+            font-size: 13px;
+            color: #78350f;
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+
+        .rule-notice p:last-child {
+            margin-bottom: 0;
+        }
 
         .form-group {
             margin-bottom: 20px;
@@ -80,7 +170,7 @@
             width: 100%;
             padding: 12px 16px;
             border: 1.5px solid var(--border);
-            border-radius: 10px;
+            border-radius: 8px;
             font-size: 16px;
             transition: all 0.2s;
             background: #fcfcfc;
@@ -93,6 +183,12 @@
             background: #fff;
         }
 
+        .input-hint {
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
         .product-preview {
             margin-top: 8px;
             font-size: 13px;
@@ -101,38 +197,53 @@
             padding-left: 4px;
         }
 
-        button {
-            width: 100%;
-            padding: 14px;
-            background-color: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
             margin-top: 8px;
         }
 
-        button:hover {
+        button {
+            padding: 12px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        #checkBtn {
+            background-color: var(--primary);
+            color: white;
+            grid-column: 1 / -1;
+        }
+
+        #checkBtn:hover {
             background-color: var(--primary-hover);
             transform: translateY(-1px);
         }
 
-        button:active {
-            transform: translateY(0);
-        }
-
-        button:disabled {
+        #checkBtn:disabled {
             background-color: var(--border);
             cursor: not-allowed;
         }
 
+        #resetBtn {
+            background-color: #f3f4f6;
+            color: var(--text-main);
+            border: 1px solid var(--border);
+        }
+
+        #resetBtn:hover {
+            background-color: #e5e7eb;
+        }
+
         #result {
-            margin-top: 24px;
+            margin-top: 20px;
             padding: 16px;
-            border-radius: 12px;
+            border-radius: 8px;
             display: none;
             animation: slideUp 0.3s ease-out;
         }
@@ -146,14 +257,14 @@
         .res-success { background-color: #f0fdf4; border: 1px solid #dcfce7; color: #166534; }
         .res-info { background-color: #eff6ff; border: 1px solid #dbeafe; color: #1e40af; }
 
-        .res-title { font-weight: 700; margin-bottom: 4px; font-size: 15px; }
-        .res-body { font-size: 14px; line-height: 1.5; }
+        .res-title { font-weight: 700; margin-bottom: 8px; font-size: 15px; }
+        .res-body { font-size: 14px; line-height: 1.6; }
 
         .island-list { margin-top: 12px; display: grid; gap: 8px; }
         .island-item { 
             padding: 10px 14px; 
             border: 1px solid var(--border); 
-            border-radius: 8px; 
+            border-radius: 6px; 
             cursor: pointer; 
             background: white; 
             font-size: 13px;
@@ -164,29 +275,143 @@
             background: var(--bg);
             color: var(--primary);
         }
+
+        /* お問い合わせ */
+        .contact-box {
+            background-color: var(--notice-bg);
+            border-left: 4px solid var(--primary);
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .contact-box h3 {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+        }
+
+        .contact-box h3::before {
+            content: "📞";
+            margin-right: 8px;
+        }
+
+        .contact-info {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+        }
+
+        .contact-phone {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 4px;
+        }
+
+        .contact-hours {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .contact-text {
+            font-size: 13px;
+            color: #1e40af;
+            line-height: 1.6;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-muted);
+        }
     </style>
 </head>
 <body>
-    <div class="card">
+    <div class="container">
         <header>
-            <h1>万代ギフト 配送判定</h1>
+            <h1>万代カタログ配送不可地域判別ツール</h1>
             <div id="dataStatus" class="status-badge status-loading">データ読み込み中...</div>
         </header>
 
-        <div class="form-group">
-            <label for="productCode">商品番号</label>
-            <input type="text" id="productCode" placeholder="例: 7201" autocomplete="off">
-            <div id="productName" class="product-preview"></div>
+        <!-- 重要なお知らせ -->
+        <div class="card">
+            <div class="notice-box">
+                <h3>重要なお知らせ</h3>
+                <ul>
+                    <li>沖縄県全域への配送はお受けしておりません</li>
+                    <li>冷凍・冷蔵商品、特殊商品（マーク）は離島への配送ができません</li>
+                    <li>下記の配送不可地域への配送はお受けしておりません</li>
+                    <li>冷凍・冷蔵商品については、配送不可地域以外でもお届けできない場合がございます</li>
+                </ul>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label for="location">配送先（郵便番号 または 島名）</label>
-            <input type="text" id="location" placeholder="例: 100-0100 または 大島" autocomplete="off">
+        <!-- 検索フォーム -->
+        <div class="card">
+            <div class="form-group">
+                <label for="productCode">商品番号</label>
+                <input type="text" id="productCode" placeholder="例: 7201" autocomplete="off">
+                <div id="productName" class="product-preview"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="location">配送先（郵便番号 または 島名）</label>
+                <input type="text" id="location" placeholder="例: 100-0100 または 大島" autocomplete="off">
+                <div class="input-hint">部分一致で検索します</div>
+            </div>
+
+            <div class="button-group">
+                <button id="checkBtn" onclick="checkDelivery()">検索</button>
+                <button id="resetBtn" onclick="resetForm()">リセット</button>
+            </div>
+
+            <div id="result"></div>
+
+            <!-- 検索方法の説明 -->
+            <div style="margin-top: 16px; padding: 12px; background-color: #eff6ff; border-radius: 6px; border-left: 3px solid var(--primary);">
+                <p style="font-size: 12px; color: #1e40af; margin: 0; line-height: 1.5;">
+                    <strong>検索方法：</strong>郵便番号または島名のどちらでも検索できます。郵便番号は「685-0025」または「6850025」の形式で入力できます。島名は部分一致で検索します。
+                </p>
+            </div>
         </div>
 
-        <button id="checkBtn" onclick="checkDelivery()" disabled>判定する</button>
+        <!-- 配送ルール変更のお知らせ -->
+        <div class="card">
+            <div class="rule-notice">
+                <h3>配送ルール変更のお知らせ</h3>
+                <p>2023年からの「お届け不可地域（転記）」の判別化により、追加料金が発生する場合があります。</p>
+                <p>お届け先住所にご不明いがあっこうご確認と、ご記入をお願いいたします。</p>
+                <p>ご不明な点ご質問がございましたら、お気軽にお問い合わせください。</p>
+            </div>
+        </div>
 
-        <div id="result"></div>
+        <!-- お問い合わせ -->
+        <div class="card">
+            <div class="contact-box">
+                <h3>お問い合わせ</h3>
+                <div class="contact-info">
+                    <div class="contact-text">
+                        配送不可地域に該当しないか確認したい場合、または特定を知りたなない場合は、以下までお気軽にお問い合わせください。
+                    </div>
+                </div>
+                <div class="contact-info">
+                    <div class="contact-phone">0120-997-560</div>
+                    <div class="contact-hours">営業時間：平日のみ 9:00～17:00</div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>© 2024 万代ギフト. All rights reserved.</p>
+        </footer>
     </div>
 
     <script>
@@ -219,7 +444,6 @@
                 error: function(err) {
                     console.error('CSV Load Error:', err);
                     document.getElementById('dataStatus').textContent = 'CSV読み込みエラー';
-                    document.getElementById('dataStatus').className = 'status-badge status-error';
                 }
             });
         }
@@ -279,7 +503,6 @@
                     isUnavailable = sagawaData.some(d => d.postalCode.replace('-', '') === cleanPostal);
                 } else {
                     matches = sagawaData.filter(d => d.city.includes(loc) || d.area.includes(loc));
-                    // 重複排除
                     const seen = new Set();
                     matches = matches.filter(m => {
                         const key = m.city + m.area;
@@ -287,7 +510,6 @@
                     });
                 }
             } else {
-                // デフォルトはヤマト
                 if (isPostal) {
                     isUnavailable = yamatoData.some(d => d.postalCodes.some(p => p.replace('-', '') === cleanPostal));
                 } else {
@@ -315,6 +537,14 @@
         function selectIsland(name) {
             locationInput.value = name;
             checkDelivery();
+        }
+
+        function resetForm() {
+            productInput.value = '';
+            locationInput.value = '';
+            productNameDiv.textContent = '';
+            resultDiv.style.display = 'none';
+            productInput.focus();
         }
 
         // 初期化
