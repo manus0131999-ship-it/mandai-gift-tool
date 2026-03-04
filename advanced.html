@@ -486,7 +486,7 @@
                 return;
             }
 
-            // カタログ自体の制限チェック
+            // 「お届け不可地域」フラグが TRUE の場合は、どこでも配送不可
             if (product.unavailable_flag) {
                 showResult('配送不可', `「${product.name}」は入力された地域への配送が出来ません。`, 'error');
                 return;
@@ -495,31 +495,38 @@
             const isPostal = /^\d{3}-?\d{4}$/.test(loc) || /^\d{7}$/.test(loc);
             const cleanPostal = loc.replace('-', '');
             
+            // 「冷蔵」「冷凍」のいずれかが TRUE の場合のみ、配送不可地域リストをチェック
+            const hasSpecialFlag = product.frozen || product.chilled;
+            
             let isUnavailable = false;
             let matches = [];
 
-            if (product.carrier === '佐川') {
-                if (isPostal) {
-                    isUnavailable = sagawaData.some(d => d.postalCode.replace('-', '') === cleanPostal);
+            // 特殊フラグがある場合のみ、配送不可地域リストをチェック
+            if (hasSpecialFlag) {
+                if (product.carrier === '佐川') {
+                    if (isPostal) {
+                        isUnavailable = sagawaData.some(d => d.postalCode.replace('-', '') === cleanPostal);
+                    } else {
+                        matches = sagawaData.filter(d => d.city.includes(loc) || d.area.includes(loc));
+                        const seen = new Set();
+                        matches = matches.filter(m => {
+                            const key = m.city + m.area;
+                            return seen.has(key) ? false : seen.add(key);
+                        });
+                    }
                 } else {
-                    matches = sagawaData.filter(d => d.city.includes(loc) || d.area.includes(loc));
-                    const seen = new Set();
-                    matches = matches.filter(m => {
-                        const key = m.city + m.area;
-                        return seen.has(key) ? false : seen.add(key);
-                    });
-                }
-            } else {
-                if (isPostal) {
-                    isUnavailable = yamatoData.some(d => d.postalCodes.some(p => p.replace('-', '') === cleanPostal));
-                } else {
-                    matches = yamatoData.filter(d => d.island.includes(loc) || d.city.includes(loc));
+                    if (isPostal) {
+                        isUnavailable = yamatoData.some(d => d.postalCodes.some(p => p.replace('-', '') === cleanPostal));
+                    } else {
+                        matches = yamatoData.filter(d => d.island.includes(loc) || d.city.includes(loc));
+                    }
                 }
             }
+            // 特殊フラグがない場合は、配送可能（リストをチェックしない）
 
             if (isUnavailable) {
                 showResult('配送不可', `「${product.name}」は入力された地域への配送が出来ません。`, 'error');
-            } else if (matches.length > 1) {
+            } else if (hasSpecialFlag && matches.length > 1) {
                 let html = '検索されたワードでは該当が複数存在します。下記から選択してください：<div class="island-list">';
                 matches.forEach(m => {
                     const name = product.carrier === '佐川' ? (m.city + ' ' + m.area) : (m.island + ' (' + m.city + ')');
@@ -527,7 +534,7 @@
                 });
                 html += '</div>';
                 showResult('地域を選択してください', html, 'info');
-            } else if (matches.length === 1) {
+            } else if (hasSpecialFlag && matches.length === 1) {
                 showResult('配送不可', `「${product.name}」は入力された地域への配送が出来ません。`, 'error');
             } else {
                 showResult('配送可能', `「${product.name}」は指定の地域へ配送可能です。`, 'success');
